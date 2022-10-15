@@ -15,10 +15,6 @@ class ChatConsumer(WebsocketConsumer):
     @classmethod
     def display_name_2_channel_name(cls, display_name):
         return PREFIX_CHANNEL_NAME + display_name
-    
-    @classmethod
-    def get_room_name(cls, channel_name1, channel_name2):
-        return 'group1'
 
     def connect(self):
         self.set_display_name()
@@ -33,12 +29,16 @@ class ChatConsumer(WebsocketConsumer):
         }))
 
     def disconnect(self, close_code):
-        # Leave room group
-        # async_to_sync(self.channel_layer.group_discard)(
-        #     self.room_group_name,
-        #     self.channel_name
-        # )
-        pass
+        self.handleLeave()
+    
+    def handleLeave(self):
+        if hasattr(self, 'peer_channel_name'):
+            ChatConsumer.send_message_to_channel(
+                self.peer_channel_name,
+                {
+                    "type": "leave", 
+                }
+            )
 
     # Receive message from WebSocket
     def receive(self, text_data):
@@ -74,6 +74,16 @@ class ChatConsumer(WebsocketConsumer):
                     "answer": data['answer']
                 }
             )
+            self.peer_channel_name = pear_channel_name
+            channel_layer = channels.layers.get_channel_layer()
+            async_to_sync(channel_layer.send)(
+                pear_channel_name,
+                { 
+                    "type": "set_peer_channel",
+                    "message": self.channel_name
+                }
+            )
+
         elif type == "candidate": 
             print("Sending candidate to:", data['name']);  
             pear_channel_name = ChatConsumer.display_name_2_channel_name(data['name'])
@@ -86,11 +96,7 @@ class ChatConsumer(WebsocketConsumer):
                 }
             )
         elif type == 'leave':
-                print("TODO: Disconnecting from", data['name']); 
-                # conn.otherName = null; 
-                # sendTo(conn, { 
-                #     type: "leave" 
-                # }) 
+                self.handleLeave()
         else:
             ChatConsumer.send_message_to_channel(
                 pear_channel_name,
@@ -118,3 +124,6 @@ class ChatConsumer(WebsocketConsumer):
         # Send message to WebSocket
         self.send(text_data=json.dumps(message))
 
+
+    def set_peer_channel(self, peer_channel):
+        self.peer_channel_name = peer_channel['message']
