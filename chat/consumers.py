@@ -9,15 +9,16 @@ PREFIX_CHANNEL_NAME = 'specific..inmemory!'
 
 class ChatConsumer(WebsocketConsumer):
 
-    def set_display_name(self):
-        self.display_name = self.channel_name.split('!')[1]
+    @classmethod
+    def get_display_name(cls, channel_name):
+        return channel_name.split('!')[1]
 
     @classmethod
     def display_name_2_channel_name(cls, display_name):
         return PREFIX_CHANNEL_NAME + display_name
 
     def connect(self):
-        self.set_display_name()
+        self.display_name = ChatConsumer.get_display_name(self.channel_name)
 
         self.accept()
         
@@ -44,6 +45,9 @@ class ChatConsumer(WebsocketConsumer):
     def receive(self, text_data):
         data = json.loads(text_data)
         type = data['type']
+        
+        if not hasattr(data, 'name') and hasattr(self, 'peer_channel_name'):
+            data['name'] = ChatConsumer.get_display_name(self.peer_channel_name)
 
         if type == 'offer':
             #for ex. UserA wants to call UserB 

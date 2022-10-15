@@ -176,7 +176,7 @@ function handleLogin(success, id) {
     var configuration = { 
         "iceServers": [{ "url": "stun:stun2.1.google.com:19302" }] 
     }; 
-        
+    
     yourConn = new RTCPeerConnection(configuration);
         
     //when a remote user adds stream to the peer connection, we display it 
@@ -198,10 +198,13 @@ function handleLogin(success, id) {
             remoteStream.addTrack(ev.track);
         }
     };
-    yourConn.onnegotiationneeded = e => yourConn.createOffer()
+    yourConn.onnegotiationneeded = e => {
+      if(connectedUser)
+         yourConn.createOffer()
             .then(offer => yourConn.setLocalDescription(offer))
             .then(() => send({type:'offer', offer:yourConn.localDescription}))
             .catch(console.log);
+    }
         
     // Setup ice handling 
     yourConn.onicecandidate = function (event) {
@@ -214,12 +217,48 @@ function handleLogin(success, id) {
         } 
             
     };
+
+    initDataChannel(yourConn);
  }
+ function initDataChannel(myConnection) { 
+   var dataChannelOptions = { 
+      reliable:true 
+   }; 
+   
+   dataChannel = myConnection.createDataChannel("myDataChannel", dataChannelOptions);   
+   
+   myConnection.ondatachannel = function (event) {
+      dataChannel = event.channel;
+   };
+
+   dataChannel.onopen = function (open) { 
+      console.log("DataChannel open:", open);
+      msgInput.disabled = false;
+      sendMsgBtn.disabled = false;
+   };  
+   dataChannel.onmessage = function (event) { 
+      console.log("DataChannel Message:", event.data); 
+   };
+   dataChannel.onerror = function (error) { 
+      console.log("DataChannel Error:", error); 
+   };
+   dataChannel.onclose = function (close) { 
+      console.log("DataChannel Close:", close); 
+      msgInput.disabled = true;
+      sendMsgBtn.disabled = true;
+   };
+ }
+ sendMsgBtn.addEventListener("click", function (event) { 
+   console.log("send message");
+   var val = msgInput.value; 
+   dataChannel.send(val); 
+});
 
 var localVideo = document.querySelector('#localVideo'); 
 var remoteVideo = document.querySelector('#remoteVideo');
  
 var yourConn; 
+var dataChannel;
 var stream;
 var remoteSenders = {};
 let remoteStream = null;
